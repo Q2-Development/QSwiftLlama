@@ -1,53 +1,93 @@
-#  SwiftLlama
+# QSwiftLlama
 
-This is basically a wrapper of [llama.cpp](https://github.com/ggerganov/llama.cpp.git) package 
-and the purpose of this repo is to provide a swiftier API for Swift developers.
+SwiftLlama is a lightweight, Swifty wrapper around the excellent [llama.cpp](https://github.com/ggml-org/llama.cpp) inference library.  
+It lets you run Llama and compatible *GGUF* models on Apple platforms (macOS, iOS, visionOS) with just a few lines of Swift.
 
-## Install
+---
+## Installation
+Add the package to your **Package.swift** dependencies:
+```swift
+.package(url: "https://github.com/Q2-Development/QSwiftLlama.git", from: "0.5.0")
+```
+Then declare the target dependency:
+```swift
+.target(
+    name: "MyApp",
+    dependencies: [
+        .product(name: "SwiftLlama", package: "SwiftLlama")
+    ]
+)
+```
+---
+## Quick-start
+### 1 – Load a model
+```swift
+import SwiftLlama
 
-    .package(url: "https://github.com/ShenghaiWang/SwiftLlama.git", from: "0.4.0")
+let modelPath = "/path/to/model.gguf"            // e.g. "codellama-7b-instruct.Q4_K_S.gguf"
+let llama = try SwiftLlama(modelPath: modelPath)   // throws if the model cannot be loaded
+```
+### 2 – Create a prompt
+```swift
+let prompt = Prompt.system("You are a helpful assistant.")
+              .user("Write a haiku about Swift.")
+```
+### 3 – Generate
+#### a) Blocking (async/await)
+```swift
+let text: String = try await llama.start(for: prompt)
+print(text)
+```
+#### b) AsyncStream (token-by-token)
+```swift
+var result = ""
+for try await token in await llama.start(for: prompt) {
+    result += token
+    print(token, terminator: "")
+}
+```
+#### c) Combine Publisher
+```swift
+import Combine
 
-## Usage
+var bag = Set<AnyCancellable>()
 
-### 1 Initialise swiftLlama using model path.
+await llama.start(for: prompt)
+    .sink(receiveCompletion: { completion in
+        print("Finished: \(completion)")
+    }, receiveValue: { delta in
+        print(delta, terminator: "")
+    })
+    .store(in: &bag)
+```
+---
+## Configuration
+`SwiftLlama` can be fine-tuned via the `Configuration` struct:
+```swift
+let config = Configuration(
+    nCTX:           4096,   // context window (tokens)
+    temperature:    0.7,    // sampling temperature
+    topK:           40,
+    topP:           0.9,
+    maxTokenCount:  512,    // maximum tokens generated
+    stopTokens:     ["</s>"]
+)
+let llama = try SwiftLlama(modelPath: modelPath, modelConfiguration: config)
+```
+---
+## Supported models
+Any *GGUF* model that can be run by **llama.cpp b6098** should work.
 
-    let swiftLlama = try SwiftLlama(modelPath: path))
-    
-### 2 Call it
+---
+## Example projects
+Play with SwiftLlama in the **TestProjects** folder, you can also use our app: 
+* **iOS** https://github.com/q2-development/qswiftllama
 
-### Call without streaming
+---
+## Contributing
+Pull requests and issues are welcome.  
+Please run `swift test` before submitting a PR.
 
-    let response: String = try await swiftLlama.start(for: prompt)
-
-#### Using AsyncStream for streaming
-
-    for try await value in await swiftLlama.start(for: prompt) {
-        result += value
-    }
-
-#### Using Combine publisher for streaming
-
-    await swiftLlama.start(for: prompt)
-        .sink { _ in
-
-        } receiveValue: {[weak self] value in
-            self?.result += value
-        }.store(in: &cancallable)
-
-## Test projects
-
-[This video](https://youtu.be/w1VEM00cJWo) was the command line app running with Llama 3 model.
-
-For using it in iOS or MacOS app, please refer to the [TestProjects](https://github.com/ShenghaiWang/SwiftLlama/tree/main/TestProjects) folder.
-
-
-## Supported Models
-
-In theory, it should support all the models that llama.cpp suports. However, the prompt format might need to be updated for some models.
-
-If you want to test it out quickly, please use this model [codellama-7b-instruct.Q4_K_S.gguf](https://huggingface.co/TheBloke/CodeLlama-7B-Instruct-GGUF/resolve/main/codellama-7b-instruct.Q4_K_S.gguf?download=true)
-
-## Welcome to contribute!!!
-
-
-
+---
+## License
+SwiftLlama is released under the MIT license.
